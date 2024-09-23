@@ -28,50 +28,16 @@ int main(){
     }
 
     // PROCESS
-    int countA = 0;
-    int countB = 0;
-    for(int i = 0; i < NUM_RECORDS; i++){
-        if(recordsA[i].value > THRESHOLD_CA_MIN){
-            countA++;
-        }
-        if(recordsB[i].value < THRESHOLD_CB_MAX){
-            countB++;
-        }
-    }
-    printf("countA: %d\n", countA);
-    printf("countB: %d\n", countB);
     // A Cross JOIN
-    RecordCx* recordCa = (RecordCx*)malloc(countA * countA * sizeof(RecordCx));
-#pragma omp parallel for
-    for(int i = 0; i < countA; i++){
-#pragma omp parallel for
-        for(int j = 0; j < countA; j++){
-            recordCa[i * countA + j].record1 = &recordsA[i];
-            recordCa[i * countA + j].record2 = &recordsA[j];
-            if(recordCa[i * countA + j].record1->value < recordCa[i * countA + j].record2->value){
-                recordCa[i * countA + j].combinedValue = recordCa[i * countA + j].record1->value;
-            }
-            else{
-                recordCa[i * countA + j].combinedValue = recordCa[i * countA + j].record2->value;
-            }
+    float minValues[NUM_RECORDS];
+    for(int i = 0; i < NUM_RECORDS; i++){
+        if(recordsA[i].value < THRESHOLD_CA_MIN)
+            continue;
+        for(int j = 0; j < NUM_RECORDS; j++){
+            if(i == j || recordsA[j].value < THRESHOLD_CA_MIN)
+                continue;
+        // TODO
         }
     }
-#pragma omp barrier
-    // RecordCx* recordCb = (RecordCx*)malloc(countB * countB * sizeof(RecordCx));
-// #pragma omp parallel for
-//     for(int i = 0; i < countB; i++){
-// #pragma omp parallel for
-//         for(int j = 0; j < countB; j++){
-//             recordCb[i * countB + j].record1 = &recordsB[i];
-//             recordCb[i * countB + j].record2 = &recordsB[j];
-//             if(recordCb[i * countB + j].record1->value < recordCb[i * countB + j].record2->value){
-//                 recordCb[i * countB + j].combinedValue = recordCb[i * countB + j].record1->value;
-//             }
-//             else{
-//                 recordCb[i * countB + j].combinedValue = recordCb[i * countB + j].record2->value;
-//             }
-//         }
-//     }
-
     return 0;
 }

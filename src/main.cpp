@@ -1,8 +1,7 @@
-#include "utils.h"
-
 #include <omp.h>
 #include <map>
 #include <string>
+#include "utils.h"
 
 int main(){
     omp_set_nested(1);
@@ -36,8 +35,9 @@ int main(){
     // PROCESS
     // A Cross JOIN
 #pragma omp parallel for
-    for(int a1 = 0; a1 < countA - 1; a1++){
-        for(int a2 = a1 + 1; a2 < countA; a2++){
+    for(int a1 = 1; a1 < countA; a1++){
+        printf("Thread %d on %d\n", omp_get_thread_num(), a1);
+        for(int a2 = a1 - 1; a2 >= 0; a2--){
             int cAId;
             float cAValue;
             if(recordsA[a1].value < recordsA[a2].value){
@@ -50,8 +50,8 @@ int main(){
             }
             // B Cross JOIN
 #pragma omp parallel for
-            for(int b1 = 0; b1 < countB - 1; b1++){
-                for(int b2 = b1 + 1; b2 < countB; b2++){
+            for(int b1 = 1; b1 < countB; b1++){
+                for(int b2 = b1 - 1; b2 >= 0; b2--){
                     int cBId;
                     float cBValue;
                     if(recordsB[b1].value > recordsB[b2].value){
@@ -64,20 +64,17 @@ int main(){
                     }
                     char* combinedId = combine_ids(ids[cAId], ids[cBId]);
                     float product = cAValue * cBValue;
-                    auto it = idToIdx.find(combinedId);
+                    std::map<std::string, int>::iterator it = idToIdx.find(combinedId);
                     if(it != idToIdx.end()){
                         product *= recordsA[it->second].value * recordsB[it->second].value;
-#pragma omp critical
-                        {
-                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
-                                    combinedId, cAValue, cBValue, product);
-                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b2],
-                                    combinedId, cAValue, cBValue, product);
-                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b2],
-                                    combinedId, cAValue, cBValue, product);
-                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b1],
-                                    combinedId, cAValue, cBValue, product);
-                        }
+                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
+                                combinedId, cAValue, cBValue, product);
+                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b2],
+                                combinedId, cAValue, cBValue, product);
+                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b2],
+                                combinedId, cAValue, cBValue, product);
+                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b1],
+                                combinedId, cAValue, cBValue, product);
                     }
                 }
             }

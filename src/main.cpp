@@ -14,9 +14,9 @@ int main(){
         fprintf(stderr, "Erro ao alocar memória.\n");
         exit(1);
     }
-
-    load_records("../db/A.txt", recordsA);
-    load_records("../db/B.txt", recordsB);
+    int countA, countB;
+    loadA("../db/A.txt", recordsA, countA);
+    loadB("../db/B.txt", recordsB, countB);
     load_ids("../db/ids.txt", ids); // Assuming ids are the same for both A and B
 
     std::map<std::string, int> idToIdx = std::map<std::string, int>();
@@ -34,48 +34,50 @@ int main(){
     }
 
     // PROCESS
-    float cAValue;
-    float cBValue;
-    char* cAId;
-    char* cBId;
-    char* combinedId;
-    float product;
     // A Cross JOIN
-    for(int a1 = 0; a1 < NUM_RECORDS; a1++){
-        if(recordsA[a1].value <= THRESHOLD_CA_MIN) continue;
-        for(int a2 = 0; a2 < NUM_RECORDS; a2++){
-            if(a1 == a2 || recordsA[a2].value <= THRESHOLD_CA_MIN) continue;
+#pragma omp parallel for
+    for(int a1 = 0; a1 < countA - 1; a1++){
+        for(int a2 = a1 + 1; a2 < countA; a2++){
+            int cAId;
+            float cAValue;
             if(recordsA[a1].value < recordsA[a2].value){
                 cAValue = recordsA[a1].value;
-                cAId = recordsA[a1].id;
+                cAId = recordsA[a1].idIdx;
             }
             else{
                 cAValue = recordsA[a2].value;
-                cAId = recordsA[a2].id;
+                cAId = recordsA[a2].idIdx;
             }
             // B Cross JOIN
-            for(int b1 = 0; b1 < NUM_RECORDS; b1++){
-                if(recordsB[b1].value >= THRESHOLD_CB_MAX) continue;
-                for(int b2 = 0; b2 < NUM_RECORDS; b2++){
-                    if(b1 == b2 || recordsB[b2].value >= THRESHOLD_CB_MAX) continue;
+#pragma omp parallel for
+            for(int b1 = 0; b1 < countB - 1; b1++){
+                for(int b2 = b1 + 1; b2 < countB; b2++){
+                    int cBId;
+                    float cBValue;
                     if(recordsB[b1].value > recordsB[b2].value){
                         cBValue = recordsB[b1].value;
-                        cBId = recordsB[b1].id;
+                        cBId = recordsB[b1].idIdx;
                     }
                     else{
                         cBValue = recordsB[b2].value;
-                        cBId = recordsB[b2].id;
+                        cBId = recordsB[b2].idIdx;
                     }
-                    combinedId = combine_ids(cAId, cBId);
-                    product = cAValue * cBValue;
+                    char* combinedId = combine_ids(ids[cAId], ids[cBId]);
+                    float product = cAValue * cBValue;
                     auto it = idToIdx.find(combinedId);
-                    if(it != idToIdx.end())
+                    if(it != idToIdx.end()){
                         product *= recordsA[it->second].value * recordsB[it->second].value;
-                    else
-                        continue;
-                    {
-                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
-                                combinedId, cAValue, cBValue, product);
+#pragma omp critical
+                        {
+                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
+                                    combinedId, cAValue, cBValue, product);
+                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b2],
+                                    combinedId, cAValue, cBValue, product);
+                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b2],
+                                    combinedId, cAValue, cBValue, product);
+                            fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b1],
+                                    combinedId, cAValue, cBValue, product);
+                        }
                     }
                 }
             }

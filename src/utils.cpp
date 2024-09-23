@@ -1,14 +1,36 @@
 #include "utils.h"
 
 
-void load_records(const char* filename, Record* records){
+void loadA(const char* filename, Record* records, int& count){
+    count = 0;
     FILE* file = fopen(filename, "r");
     if(!file){
         fprintf(stderr, "Erro ao abrir o arquivo %s.\n", filename);
         exit(1);
     }
     for(int i = 0; i < NUM_RECORDS; ++i){
-        fscanf(file, "%f", &records[i].value);
+        fscanf(file, "%f", &records[count].value);
+        if(records[count].value > THRESHOLD_CA_MIN){
+            records[count].idIdx = count;
+            count++;
+        }
+    }
+    fclose(file);
+}
+
+void loadB(const char* filename, Record* records, int& count){
+    count = 0;
+    FILE* file = fopen(filename, "r");
+    if(!file){
+        fprintf(stderr, "Erro ao abrir o arquivo %s.\n", filename);
+        exit(1);
+    }
+    for(int i = 0; i < NUM_RECORDS; ++i){
+        fscanf(file, "%f", &records[count].value);
+        if(records[count].value < THRESHOLD_CB_MAX){
+            records[count].idIdx = count;
+            count++;
+        }
     }
     fclose(file);
 }

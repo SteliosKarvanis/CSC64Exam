@@ -10,7 +10,7 @@
 #define NUM_RECORDS 30000
 #define THRESHOLD_CA_MIN 0.25f
 #define THRESHOLD_CB_MAX 0.75f
-#define CHUNK_SIZE 100000
+#define CHUNK_SIZE 10000
 #define MAX(x, y) (((x) > (y)) ? (x) : (y))
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 

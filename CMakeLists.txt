@@ -8,7 +8,7 @@ project(CSC64Exam VERSION 1.0)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED True)
 
-file(GLOB SOURCES "src/*.c")
+file(GLOB SOURCES "src/*.cpp")
 
 # Find OpenMP package
 find_package(OpenMP REQUIRED)

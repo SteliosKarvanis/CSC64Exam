@@ -8,6 +8,7 @@
 
 
 #define NUM_RECORDS 30000
+// #define NUM_RECORDS 30
 #define THRESHOLD_CA_MIN 0.25f
 #define THRESHOLD_CB_MAX 0.75f
 #define CHUNK_SIZE 10000

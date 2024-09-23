@@ -1,6 +1,8 @@
 #include "utils.h"
 
 #include <omp.h>
+#include <map>
+#include <string>
 
 int main(){
     omp_set_nested(1);
@@ -8,7 +10,6 @@ int main(){
     Record* recordsA = (Record*)malloc(NUM_RECORDS * sizeof(Record));
     Record* recordsB = (Record*)malloc(NUM_RECORDS * sizeof(Record));
     char(*ids)[6] = (char(*)[6])malloc(NUM_RECORDS * sizeof(*ids));
-
     if(!recordsA || !recordsB || !ids){
         fprintf(stderr, "Erro ao alocar memória.\n");
         exit(1);
@@ -17,6 +18,11 @@ int main(){
     load_records("../db/A.txt", recordsA);
     load_records("../db/B.txt", recordsB);
     load_ids("../db/ids.txt", ids); // Assuming ids are the same for both A and B
+
+    std::map<std::string, int> idToIdx = std::map<std::string, int>();
+    for(int i = 0; i < NUM_RECORDS; i++){
+        idToIdx[(std::string)ids[i]] = i;
+    }
 
     FILE* output = fopen("../output.csv", "w");
     if(!output){
@@ -62,16 +68,10 @@ int main(){
                     }
                     combinedId = combine_ids(cAId, cBId);
                     product = cAValue * cBValue;
-                    int found = 0;
-                    for(int i = 0; i < NUM_RECORDS; ++i){
-                        if(strcmp(combinedId, ids[i]) == 0 ||
-                           strcmp(combinedId, ids[i]) == 0){
-                            product *= recordsA[i].value * recordsB[i].value;
-                            found = 1;
-                            break;
-                        }
-                    }
-                    if(!found)
+                    auto it = idToIdx.find(combinedId);
+                    if(it != idToIdx.end())
+                        product *= recordsA[it->second].value * recordsB[it->second].value;
+                    else
                         continue;
                     {
                         fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
@@ -81,12 +81,11 @@ int main(){
             }
         }
     }
-
     // Sort
     // Ordena os registros com base no valor da coluna f
     // NOTE: This is a simplified approach; for large datasets, external sorting
     // would be more appropriate
-    system("sort -t, -k6 -n output.csv -o ../sorted_output.csv");
+    system("sort -t, -k6 -n ../output.csv -o ../sorted_output.csv");
     // Descrição do comando:
     // sort: O comando para ordenar.
     // -t,: Define a vírgula (,) como delimitador de campo.

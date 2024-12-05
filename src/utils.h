@@ -24,5 +24,6 @@ void loadA(const char* filename, Record* records, int& count);
 void loadB(const char* filename, Record* records, int& count);
 void load_ids(const char* filename, char (*ids)[6]);
 char* combine_ids(const char* id1, const char* id2);
+char* combine_ids_reduced(const char* id1, const char* id2);
 
 #endif

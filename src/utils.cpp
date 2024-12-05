@@ -57,3 +57,14 @@ char* combine_ids(const char* id1, const char* id2){
     result[5] = '\0';
     return result;
 }
+
+char* combine_ids_reduced(const char* id1, const char* id2){
+    static char result[6];
+    result[0] = id1[0];
+    result[1] = id2[0];
+    result[2] = id1[1];
+    result[3] = id2[1];
+    result[4] = id1[2];
+    result[5] = '\0';
+    return result;
+}

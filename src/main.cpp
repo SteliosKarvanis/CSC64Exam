@@ -6,13 +6,6 @@
 #include <algorithm>
 #include <fstream>
 #include "utils.h"
-#include <time.h>
-
-// Estrutura Record
-// typedef struct {
-//     int idIdx;     // Índice do ID no vetor `ids`
-//     float value;   // Valor associado ao registro
-// } Record;
 
 // Função para combinar IDs usando o operador "◦"
 std::string combine_ids(const std::string &idA, const std::string &idB)
@@ -21,10 +14,6 @@ std::string combine_ids(const std::string &idA, const std::string &idB)
 }
 
 int main(){
-
-    // Initial time
-    clock_t start = clock();
-
     omp_set_nested(1);
     // INIT
     int sizeA = 0, sizeB = 0;
@@ -178,12 +167,14 @@ int main(){
             }
         }
     }
-    // delta time
-    clock_t end = clock();
-    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
-    std::cout << "Tempo de execução: " << time_spent << " segundos" << std::endl;
 
-    std::cout << "Processamento completo. Resultados salvos em sorted_output.csv." << std::endl << "Numero de linhas: " << total << std::endl;
+
     fclose(output);
+    // Libera a memória alocada dinamicamente
+    free(recordsA);
+    free(recordsB);
+    free(ids);
+
+    std::cout << "Processamento completo. Resultados salvos em output.csv." << std::endl << "Numero de linhas: " << total << std::endl;
     return 0;
 }

@@ -20,24 +20,6 @@ typedef struct{
     float value;
 } Record;
 
-typedef struct{
-    int idIdx1;
-    int idIdx2;
-    float value1;
-    float value2;
-} RecordC;
-
-typedef struct{
-    int idIdxA1;
-    int idIdxA2;
-    int idIdxB1;
-    int idIdxB2;
-    float valueA1;
-    float valueA2;
-    float valueB1;
-    float valueB2;
-} RecordCAB;
-
 int loadA(const char* filename, Record* records, int& count);
 int loadB(const char* filename, Record* records, int& count);
 void load_ids(const char* filename, char (*ids)[6]);

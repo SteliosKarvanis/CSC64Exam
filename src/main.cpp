@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <fstream>
 #include "utils.h"
+#include <time.h>
 
 // Estrutura Record
 // typedef struct {
@@ -13,151 +14,176 @@
 //     float value;   // Valor associado ao registro
 // } Record;
 
-// Funções auxiliares (assumindo que existam no "utils.h")
-extern void loadA(const char *path, Record *records, int &count);
-extern void loadB(const char *path, Record *records, int &count);
-extern void load_ids(const char *path, char ids[][6]);
-
 // Função para combinar IDs usando o operador "◦"
 std::string combine_ids(const std::string &idA, const std::string &idB)
 {
     return std::string() + idA[0] + idB[0] + idA[1] + idB[1] + idA[2];
 }
 
-// Função para carregar a base de dados
-void load_database(const std::string &pathA, const std::string &pathB, const std::string &pathIDs,
-                   std::vector<Record> &recordsA, std::vector<Record> &recordsB, std::vector<std::string> &ids)
-{
-    // Aloca memória para os dados brutos
-    Record *rawRecordsA = (Record *)malloc(NUM_RECORDS * sizeof(Record));
-    Record *rawRecordsB = (Record *)malloc(NUM_RECORDS * sizeof(Record));
-    char(*rawIds)[6] = (char(*)[6])malloc(NUM_RECORDS * sizeof(*rawIds));
+int main(){
 
-    if (!rawRecordsA || !rawRecordsB || !rawIds)
-    {
-        fprintf(stderr, "Erro ao alocar memória para a base de dados.\n");
+    // Initial time
+    clock_t start = clock();
+
+    omp_set_nested(1);
+    // INIT
+    int sizeA = 0, sizeB = 0;
+    Record* recordsA = (Record*)malloc(NUM_RECORDS * sizeof(Record));
+    Record* recordsB = (Record*)malloc(NUM_RECORDS * sizeof(Record));
+    char(*ids)[6] = (char(*)[6])malloc(NUM_RECORDS * sizeof(*ids));
+    if(!recordsA || !recordsB || !ids){
+        fprintf(stderr, "Erro ao alocar memória.\n");
         exit(1);
     }
+    int countA, countB;
+    sizeA = loadA("../db/A.txt", recordsA, countA);
+    sizeB = loadB("../db/B.txt", recordsB, countB);
+    load_ids("../db/ids.txt", ids); // Assuming ids are the same for both A and B
 
-    int countA = 0, countB = 0;
-    loadA(pathA.c_str(), rawRecordsA, countA); // Carrega registros A
-    loadB(pathB.c_str(), rawRecordsB, countB); // Carrega registros B
-    load_ids(pathIDs.c_str(), rawIds);         // Carrega IDs alfabéticos
-
-    // Salva os IDs em um vetor de strings
-    for (int i = 0; i < NUM_RECORDS; ++i)
-    {
-        ids.push_back(std::string(rawIds[i])); // Converte para std::string
+    std::map<std::string, int> idToIdx = std::map<std::string, int>();
+    for(int i = 0; i < NUM_RECORDS; i++){
+        idToIdx[(std::string)ids[i]] = i;
     }
 
-    // Transfere registros de A e B para os vetores
-    for (int i = 0; i < countA; ++i)
-    {
-        recordsA.push_back({rawRecordsA[i].idIdx, rawRecordsA[i].value});
+    FILE* output = fopen("../output.csv", "w");
+    if(!output){
+        fprintf(stderr, "Erro ao abrir o arquivo de saída.\n");
+        free(recordsA);
+        free(recordsB);
+        free(ids);
+        return 1;
     }
 
-    for (int i = 0; i < countB; ++i)
-    {
-        recordsB.push_back({rawRecordsB[i].idIdx, rawRecordsB[i].value});
+    std::vector<std::pair<std::string, std::pair<float, float>>> dataBase = std::vector<std::pair<std::string, std::pair<float, float>>>();
+    
+    std::map<std::string, std::pair<float, float>> dataBaseFirstOnly = std::map<std::string, std::pair<float, float>>();
+
+
+    for(int i = 0; i < NUM_RECORDS; i++){
+        dataBase.push_back(std::make_pair(ids[i], std::make_pair(recordsA[i].value, recordsB[i].value)));
+        if (dataBaseFirstOnly.find(ids[i]) == dataBaseFirstOnly.end())
+            dataBaseFirstOnly[ids[i]] = std::make_pair(recordsA[i].value, recordsB[i].value);
     }
 
-    // Libera memória alocada dinamicamente
-    free(rawRecordsA);
-    free(rawRecordsB);
-    free(rawIds);
-
-    std::cout << "Base de dados carregada com sucesso!" << std::endl;
-}
-
-int main()
-{
-    // Inicializa os vetores e mapas necessários
-    std::vector<Record> recordsA, recordsB;
-    std::vector<std::string> ids;
-    std::map<std::string, float> reducedA, reducedB;
-
-    // Caminhos para os arquivos
-    std::string pathA = "../db/A.txt";
-    std::string pathB = "../db/B.txt";
-    std::string pathIDs = "../db/ids.txt";
-
-    // Carrega a base de dados
-    load_database(pathA, pathB, pathIDs, recordsA, recordsB, ids);
+    std::map<std::string, std::vector<int>> reducedA = std::map<std::string, std::vector<int>>();
+    std::map<std::string, std::vector<int>> reducedB = std::map<std::string, std::vector<int>>();
 
     // Passo 1: Reduzir os IDs para A (posições 1, 3, 5) e filtrar por a_m > 0.25
-#pragma omp parallel for
-    for (size_t i = 0; i < recordsA.size(); ++i)
+    #pragma omp parallel for
+    for (size_t i = 0; i < sizeA; ++i)
     {
-        const std::string &id = ids[recordsA[i].idIdx];
+        const std::string &id = ids[i];
         std::string reducedId = std::string() + id[0] + id[2] + id[4];
         float value = recordsA[i].value;
 
         if (value > 0.25)
         {
-#pragma omp critical
-            reducedA[reducedId] = std::max(reducedA[reducedId], value);
+            #pragma omp critical
+            reducedA[reducedId].push_back(i);
         }
     }
 
     // Passo 2: Reduzir os IDs para B (posições 2, 4) e filtrar por b_M < 0.75
-#pragma omp parallel for
-    for (size_t i = 0; i < recordsB.size(); ++i)
+    #pragma omp parallel for
+    for (size_t i = 0; i < sizeB; ++i)
     {
-        const std::string &id = ids[recordsB[i].idIdx];
+        const std::string &id = ids[i];
         std::string reducedId = std::string() + id[1] + id[3];
         float value = recordsB[i].value;
 
         if (value < 0.75)
         {
-#pragma omp critical
-            reducedB[reducedId] = std::max(reducedB[reducedId], value);
+            #pragma omp critical
+            reducedB[reducedId].push_back(i);
         }
     }
 
-    // Converter mapas reduzidos para vetores para compatibilidade com OpenMP
-    std::vector<std::pair<std::string, float>> vectorReducedA(reducedA.begin(), reducedA.end());
-    std::vector<std::pair<std::string, float>> vectorReducedB(reducedB.begin(), reducedB.end());
+    // Agora precisamos saber quantas vezes o reduzido de A e B podem aparecer na resposta,
+    // da pra fazer isso fazendo o sort e vendo quantas vezes ele é maior que outros caras,
+    // para facilitar eu vou fazer dois fors
+    // TODO: reduzir de O(n^2) para O(nlogn)
 
-    // Passo 3: Combinar IDs reduzidos e calcular f
-    std::vector<std::tuple<std::string, std::string, std::string, float, float, float>> results;
+    std::vector<float> timesToRepeatA = std::vector<float>();
+    std::vector<float> timesToRepeatB = std::vector<float>();
 
-#pragma omp parallel for collapse(2)
-    for (size_t i = 0; i < vectorReducedA.size(); ++i)
+    #pragma omp parallel for
+    for (size_t i = 0; i < sizeA; ++i)
     {
-        for (size_t j = 0; j < vectorReducedB.size(); ++j)
+        float value = recordsA[i].value;
+        int times = 0;
+        for (size_t j = i + 1; j < sizeA; ++j)
         {
-            const auto &entryA = vectorReducedA[i];
-            const auto &entryB = vectorReducedB[j];
-
-            std::string combinedId = combine_ids(entryA.first, entryB.first);
-            #pragma omp critical
-            std::cout << combinedId << " " << entryA.first << " " << entryB.first << std::endl;
-            auto it = std::find(ids.begin(), ids.end(), combinedId);
-
-            if (it != ids.end())
+            float value2 = recordsA[j].value;
+            if (value < value2)
             {
-                int idx = std::distance(ids.begin(), it);
-                float p = recordsA[idx].value * recordsB[idx].value;
-                float f = entryA.second * entryB.second * p;
+                #pragma omp critical
+                times++;
+            }
+        }
+        #pragma omp critical
+        timesToRepeatA.push_back(times);
+    }
 
-#pragma omp critical
-                results.emplace_back(entryA.first, entryB.first, combinedId, entryA.second, entryB.second, f);
+    // Passo 2: Reduzir os IDs para B (posições 2, 4) e filtrar por b_M < 0.75
+    #pragma omp parallel for
+    for (size_t i = 0; i < sizeB; ++i)
+    {
+        float value = recordsB[i].value;
+        int times = 0;
+        for (size_t j = i + 1; j < sizeB; ++j)
+        {
+            float value2 = recordsB[j].value;
+            if (value > value2)
+            {
+                #pragma omp critical
+                times++;
+            }
+        }
+        #pragma omp critical
+        timesToRepeatB.push_back(times);
+    }
+
+
+    // TODO: paralelizar esse for
+
+    long long int total = 0;
+    for (const auto& pairA : reducedA)
+    {
+        const std::string& idA = pairA.first;
+        const std::vector<int>& indicesA = pairA.second;
+
+        for (const auto& pairB : reducedB)
+        {
+            const std::string& idB = pairB.first;
+            const std::vector<int>& indicesB = pairB.second;
+
+            const std::string& combinedId = combine_ids(idA, idB);
+            if (dataBaseFirstOnly.find(combinedId) != dataBaseFirstOnly.end())
+            {
+                std::pair<float, float> pairAB = dataBaseFirstOnly[combinedId];
+                float p = (pairAB.first) * (pairAB.second);
+                for (const auto& idxA : indicesA)
+                {
+                    for (const auto& idxB : indicesB)
+                    {
+                        float f = recordsA[idxA].value * recordsB[idxB].value * p;
+
+                        int timesA = timesToRepeatA[idxA];
+                        int timesB = timesToRepeatB[idxB];
+                        int timesToRepeat = timesA * timesB;
+                        fprintf(output, "%s,%s,%s,%f,%f, %f, %d\n", ids[idxA], ids[idxB], combinedId.c_str(), recordsA[idxA].value, recordsB[idxB].value, f, timesToRepeat);
+                        total+=timesToRepeat;
+                    }
+                }
             }
         }
     }
-    // Ordenar os resultados com base em f
-    std::sort(results.begin(), results.end(), [](const auto &a, const auto &b)
-              { return std::get<5>(a) < std::get<5>(b); });
+    // delta time
+    clock_t end = clock();
+    double time_spent = (double)(end - start) / CLOCKS_PER_SEC;
+    std::cout << "Tempo de execução: " << time_spent << " segundos" << std::endl;
 
-    // Salvar resultados no arquivo CSV
-    std::ofstream output("../sorted_output.csv");
-    output << "ID_a_m,ID_b_M,ID',a_m,b_M,f\n";
-    for (const auto &row : results)
-    {
-        output << std::get<0>(row) << "," << std::get<1>(row) << "," << std::get<2>(row) << ","
-               << std::get<3>(row) << "," << std::get<4>(row) << "," << std::get<5>(row) << "\n";
-    }
-
-    std::cout << "Processamento completo. Resultados salvos em sorted_output.csv." << std::endl;
+    std::cout << "Processamento completo. Resultados salvos em sorted_output.csv." << std::endl << "Numero de linhas: " << total << std::endl;
+    fclose(output);
     return 0;
 }

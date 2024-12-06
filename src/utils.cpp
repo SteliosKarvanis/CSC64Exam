@@ -1,7 +1,7 @@
 #include "utils.h"
 
 
-void loadA(const char* filename, Record* records, int& count){
+int loadA(const char* filename, Record* records, int& count){
     count = 0;
     FILE* file = fopen(filename, "r");
     if(!file){
@@ -10,15 +10,14 @@ void loadA(const char* filename, Record* records, int& count){
     }
     for(int i = 0; i < NUM_RECORDS; ++i){
         fscanf(file, "%f", &records[count].value);
-        if(records[count].value > THRESHOLD_CA_MIN){
-            records[count].idIdx = count;
-            count++;
-        }
+        records[count].idIdx = count;
+        count++;
     }
     fclose(file);
+    return count;
 }
 
-void loadB(const char* filename, Record* records, int& count){
+int loadB(const char* filename, Record* records, int& count){
     count = 0;
     FILE* file = fopen(filename, "r");
     if(!file){
@@ -27,12 +26,11 @@ void loadB(const char* filename, Record* records, int& count){
     }
     for(int i = 0; i < NUM_RECORDS; ++i){
         fscanf(file, "%f", &records[count].value);
-        if(records[count].value < THRESHOLD_CB_MAX){
-            records[count].idIdx = count;
-            count++;
-        }
+        records[count].idIdx = count;
+        count++;
     }
     fclose(file);
+    return count;
 }
 
 void load_ids(const char* filename, char (*ids)[6]){

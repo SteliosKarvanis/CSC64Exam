@@ -7,7 +7,7 @@
 #include <string.h>
 
 
-#define NUM_RECORDS 3000
+#define NUM_RECORDS 30000
 // #define NUM_RECORDS 30
 #define THRESHOLD_CA_MIN 0.25f
 #define THRESHOLD_CB_MAX 0.75f
@@ -20,8 +20,26 @@ typedef struct{
     float value;
 } Record;
 
-void loadA(const char* filename, Record* records, int& count);
-void loadB(const char* filename, Record* records, int& count);
+typedef struct{
+    int idIdx1;
+    int idIdx2;
+    float value1;
+    float value2;
+} RecordC;
+
+typedef struct{
+    int idIdxA1;
+    int idIdxA2;
+    int idIdxB1;
+    int idIdxB2;
+    float valueA1;
+    float valueA2;
+    float valueB1;
+    float valueB2;
+} RecordCAB;
+
+int loadA(const char* filename, Record* records, int& count);
+int loadB(const char* filename, Record* records, int& count);
 void load_ids(const char* filename, char (*ids)[6]);
 char* combine_ids(const char* id1, const char* id2);
 char* combine_ids_reduced(const char* id1, const char* id2);

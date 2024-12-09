@@ -7,8 +7,7 @@
 #include <string.h>
 
 
-#define NUM_RECORDS 3000
-// #define NUM_RECORDS 30
+#define NUM_RECORDS 30000
 #define THRESHOLD_CA_MIN 0.25f
 #define THRESHOLD_CB_MAX 0.75f
 #define CHUNK_SIZE 10000
@@ -20,9 +19,10 @@ typedef struct{
     float value;
 } Record;
 
-void loadA(const char* filename, Record* records, int& count);
-void loadB(const char* filename, Record* records, int& count);
+int loadA(const char* filename, Record* records, int& count);
+int loadB(const char* filename, Record* records, int& count);
 void load_ids(const char* filename, char (*ids)[6]);
 char* combine_ids(const char* id1, const char* id2);
+char* combine_ids_reduced(const char* id1, const char* id2);
 
 #endif

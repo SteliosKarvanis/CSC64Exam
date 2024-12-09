@@ -1,11 +1,20 @@
-#include <omp.h>
-#include <map>
+#include <iostream>
+#include <vector>
 #include <string>
+#include <unordered_map>
+#include <algorithm>
+#include <fstream>
+#include <omp.h>
 #include "utils.h"
+
+std::string combine_ids(const std::string &idA, const std::string &idB)
+{
+    return std::string() + idA[0] + idB[0] + idA[1] + idB[1] + idA[2];
+}
 
 int main(){
     omp_set_nested(1);
-    // INIT
+    int sizeA = 0, sizeB = 0;
     Record* recordsA = (Record*)malloc(NUM_RECORDS * sizeof(Record));
     Record* recordsB = (Record*)malloc(NUM_RECORDS * sizeof(Record));
     char(*ids)[6] = (char(*)[6])malloc(NUM_RECORDS * sizeof(*ids));
@@ -14,11 +23,11 @@ int main(){
         exit(1);
     }
     int countA, countB;
-    loadA("../db/A.txt", recordsA, countA);
-    loadB("../db/B.txt", recordsB, countB);
+    sizeA = loadA("../db/A.txt", recordsA, countA);
+    sizeB = loadB("../db/B.txt", recordsB, countB);
     load_ids("../db/ids.txt", ids); // Assuming ids are the same for both A and B
 
-    std::map<std::string, int> idToIdx = std::map<std::string, int>();
+    std::unordered_map<std::string, int> idToIdx;
     for(int i = 0; i < NUM_RECORDS; i++){
         idToIdx[(std::string)ids[i]] = i;
     }
@@ -32,72 +41,144 @@ int main(){
         return 1;
     }
 
-    // PROCESS
-    // A Cross JOIN
-#pragma omp parallel for
-    for(int a1 = 1; a1 < countA; a1++){
-        printf("Thread %d on %d\n", omp_get_thread_num(), a1);
-        for(int a2 = a1 - 1; a2 >= 0; a2--){
-            int cAId;
-            float cAValue;
-            if(recordsA[a1].value < recordsA[a2].value){
-                cAValue = recordsA[a1].value;
-                cAId = recordsA[a1].idIdx;
+    fprintf(output, "ID_a_m,ID_b_M,ID',a_m,b_M,f,numTimes\n");
+
+    std::vector<std::pair<std::string, std::pair<float, float>>> dataBase;
+    dataBase.reserve(NUM_RECORDS);
+
+    std::unordered_map<std::string, std::pair<float, float>> dataBaseFirstOnly;
+
+    for(int i = 0; i < NUM_RECORDS; i++){
+        dataBase.push_back(std::make_pair(ids[i], std::make_pair(recordsA[i].value, recordsB[i].value)));
+        if (dataBaseFirstOnly.find(ids[i]) == dataBaseFirstOnly.end())
+            dataBaseFirstOnly[ids[i]] = std::make_pair(recordsA[i].value, recordsB[i].value);
+    }
+
+    std::unordered_map<std::string, std::vector<int>> reducedA;
+    std::unordered_map<std::string, std::vector<int>> reducedB;
+
+    #pragma omp parallel for
+    for (size_t i = 0; i < (size_t)sizeA; ++i)
+    {
+        const std::string &id = ids[i];
+        std::string reducedId = std::string() + id[0] + id[2] + id[4];
+        float value = recordsA[i].value;
+
+        if (value > 0.25)
+        {
+            #pragma omp critical
+            reducedA[reducedId].push_back(i);
+        }
+    }
+
+    #pragma omp parallel for
+    for (size_t i = 0; i < (size_t)sizeB; ++i)
+    {
+        const std::string &id = ids[i];
+        std::string reducedId = std::string() + id[1] + id[3];
+        float value = recordsB[i].value;
+
+        if (value < 0.75)
+        {
+            #pragma omp critical
+            reducedB[reducedId].push_back(i);
+        }
+    }
+
+    std::vector<float> timesToRepeatA;
+    timesToRepeatA.reserve(sizeA);
+    for (size_t i = 0; i < (size_t)sizeA; ++i)
+    {
+        float value = recordsA[i].value;
+        int times = 0;
+        for (size_t j = 0; j < (size_t)sizeA; ++j)
+        {
+            if (i == j) continue;
+
+            float value2 = recordsA[j].value;
+            if (value < 0.25 || value2 < 0.25)
+                continue;
+            if (value < value2)
+            {
+                times++;
             }
-            else{
-                cAValue = recordsA[a2].value;
-                cAId = recordsA[a2].idIdx;
+        }
+        timesToRepeatA.push_back(times);
+    }
+
+    std::vector<float> timesToRepeatB;
+    timesToRepeatB.reserve(sizeB);
+    for (size_t i = 0; i < (size_t)sizeB; ++i)
+    {
+        float value = recordsB[i].value;
+        int times = 0;
+        for (size_t j = 0; j < (size_t)sizeB; ++j)
+        {
+            if (i == j) continue;
+            float value2 = recordsB[j].value;
+            if (value > 0.75 || value2 > 0.75)
+                continue;
+            if (value > value2)
+            {
+                times++;
             }
-            // B Cross JOIN
-#pragma omp parallel for
-            for(int b1 = 1; b1 < countB; b1++){
-                for(int b2 = b1 - 1; b2 >= 0; b2--){
-                    int cBId;
-                    float cBValue;
-                    if(recordsB[b1].value > recordsB[b2].value){
-                        cBValue = recordsB[b1].value;
-                        cBId = recordsB[b1].idIdx;
-                    }
-                    else{
-                        cBValue = recordsB[b2].value;
-                        cBId = recordsB[b2].idIdx;
-                    }
-                    char* combinedId = combine_ids(ids[cAId], ids[cBId]);
-                    float product = cAValue * cBValue;
-                    std::map<std::string, int>::iterator it = idToIdx.find(combinedId);
-                    if(it != idToIdx.end()){
-                        product *= recordsA[it->second].value * recordsB[it->second].value;
-                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b1],
-                                combinedId, cAValue, cBValue, product);
-                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b2],
-                                combinedId, cAValue, cBValue, product);
-                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a1], ids[b2],
-                                combinedId, cAValue, cBValue, product);
-                        fprintf(output, "%s,%s,%s,%f,%f,%f\n", ids[a2], ids[b1],
-                                combinedId, cAValue, cBValue, product);
+        }
+        timesToRepeatB.push_back(times);
+    }
+
+    // Prepare vectors for parallel iteration
+    std::vector<std::pair<std::string, std::vector<int>>> vecA(reducedA.begin(), reducedA.end());
+    std::vector<std::pair<std::string, std::vector<int>>> vecB(reducedB.begin(), reducedB.end());
+
+    long long int total = 0;
+
+    #pragma omp parallel for collapse(2) reduction(+:total)
+    for (size_t iA = 0; iA < vecA.size(); iA++)
+    {
+        for (size_t iB = 0; iB < vecB.size(); iB++)
+        {
+            const std::string& idA = vecA[iA].first;
+            const std::vector<int>& indicesA = vecA[iA].second;
+
+            const std::string& idB = vecB[iB].first;
+            const std::vector<int>& indicesB = vecB[iB].second;
+
+            const std::string combinedId = combine_ids(idA, idB);
+            if (dataBaseFirstOnly.find(combinedId) != dataBaseFirstOnly.end())
+            {
+                std::pair<float, float> pairAB = dataBaseFirstOnly[combinedId];
+                float p = pairAB.first * pairAB.second;
+                for (const auto& idxA : indicesA)
+                {
+                    for (const auto& idxB : indicesB)
+                    {
+                        float f = recordsA[idxA].value * recordsB[idxB].value * p;
+
+                        int timesA = (int)timesToRepeatA[idxA];
+                        int timesB = (int)timesToRepeatB[idxB];
+                        long long int timesToRepeat = timesA * timesB * 4;
+                        if (timesToRepeat < 1)
+                        {
+                            continue;
+                        }
+                        #pragma omp critical
+                        {
+                            fprintf(output, "%s,%s,%s,%f,%f,%f,%lld\n", ids[idxA], ids[idxB], combinedId.c_str(), recordsA[idxA].value, recordsB[idxB].value, f, timesToRepeat);
+                            total+=timesToRepeat;
+                        }
                     }
                 }
             }
         }
     }
-    // Sort
-    // Ordena os registros com base no valor da coluna f
-    // NOTE: This is a simplified approach; for large datasets, external sorting
-    // would be more appropriate
-    system("sort -t, -k6 -n ../output.csv -o ../sorted_output.csv");
-    // Descrição do comando:
-    // sort: O comando para ordenar.
-    // -t,: Define a vírgula (,) como delimitador de campo.
-    // -k6: Especifica que a ordenação deve ser feita com base no sexto campo.
-    // -n: Realiza uma ordenação numérica.
-    // output.csv: O arquivo de entrada.
-    // -o sorted_output.csv: Especifica o arquivo de saída.
 
-    // Libera a memória alocada dinamicamente
+    fclose(output);
     free(recordsA);
     free(recordsB);
     free(ids);
 
-    printf("Processamento completo. Resultados salvos em sorted_output.csv.\n");
+    system("sort -t, -k6 -n ../output.csv -o ../sorted_output.csv");
+
+    std::cout << "Processamento completo. Resultados salvos em output.csv." << std::endl << "Numero de linhas: " << total << std::endl;
     return 0;
 }

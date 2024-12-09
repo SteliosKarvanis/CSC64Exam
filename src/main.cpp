@@ -97,66 +97,42 @@ int main(){
     std::vector<float> timesToRepeatA = std::vector<float>();
     std::vector<float> timesToRepeatB = std::vector<float>();
 
-    #pragma omp parallel for
     for (size_t i = 0; i < sizeA; ++i)
     {
         float value = recordsA[i].value;
         int times = 0;
-        for (size_t j = i + 1; j < sizeA; ++j)
+        for (size_t j = 0; j < sizeA; ++j)
         {
+            if (i == j) continue;
 
             float value2 = recordsA[j].value;
             if (value < 0.25 || value2 < 0.25)
                 continue;
             if (value < value2)
             {
-                #pragma omp critical
                 times++;
             }
         }
-        #pragma omp critical
         timesToRepeatA.push_back(times);
     }
 
-    #pragma omp parallel for
     for (size_t i = 0; i < sizeB; ++i)
     {
         float value = recordsB[i].value;
         int times = 0;
-        for (size_t j = i + 1; j < sizeB; ++j)
+        for (size_t j = 0; j < sizeB; ++j)
         {
+            if (i == j) continue;
             float value2 = recordsB[j].value;
             if (value > 0.75 || value2 > 0.75)
                 continue;
             if (value > value2)
             {
-                #pragma omp critical
                 times++;
             }
         }
-        #pragma omp critical
         timesToRepeatB.push_back(times);
     }
-
-    // Print reduced a e b
-    // for (const auto& pair : reducedA)
-    // {
-    //     const std::string& id = pair.first;
-    //     const std::vector<int>& indices = pair.second;
-    //     for (const int& index : indices)
-    //     {
-    //         fprintf(stdout, "A :%s,%f\n", ids[index], recordsA[index].value);
-    //     }
-    // }
-    // for (const auto& pair : reducedA)
-    // {
-    //     const std::string& id = pair.first;
-    //     const std::vector<int>& indices = pair.second;
-    //     for (const int& index : indices)
-    //     {
-    //         fprintf(stdout, "B: %s,%f\n", ids[index], recordsB[index].value);
-    //     }
-    // }
 
 
     // TODO: paralelizar esse for
@@ -185,11 +161,11 @@ int main(){
 
                         int timesA = timesToRepeatA[idxA];
                         int timesB = timesToRepeatB[idxB];
-                        long long int timesToRepeat = timesA * timesB;
-                        // if (timesToRepeat < 1)
-                        // {
-                        //     continue;
-                        // }
+                        long long int timesToRepeat = timesA * timesB * 4;
+                        if (timesToRepeat < 1)
+                        {
+                            continue;
+                        }
                         fprintf(output, "%s,%s,%s,%f,%f, %f, %lld\n", ids[idxA], ids[idxB], combinedId.c_str(), recordsA[idxA].value, recordsB[idxB].value, f, timesToRepeat);
                         total+=timesToRepeat;
                     }

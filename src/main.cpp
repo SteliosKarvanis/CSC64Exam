@@ -43,6 +43,8 @@ int main(){
         return 1;
     }
 
+    fprintf(output, "ID_a_m,ID_b_M,ID',a_m,b_M,f,numTimes\n");
+
     std::vector<std::pair<std::string, std::pair<float, float>>> dataBase = std::vector<std::pair<std::string, std::pair<float, float>>>();
     
     std::map<std::string, std::pair<float, float>> dataBaseFirstOnly = std::map<std::string, std::pair<float, float>>();
@@ -102,7 +104,10 @@ int main(){
         int times = 0;
         for (size_t j = i + 1; j < sizeA; ++j)
         {
+
             float value2 = recordsA[j].value;
+            if (value < 0.25 || value2 < 0.25)
+                continue;
             if (value < value2)
             {
                 #pragma omp critical
@@ -113,7 +118,6 @@ int main(){
         timesToRepeatA.push_back(times);
     }
 
-    // Passo 2: Reduzir os IDs para B (posições 2, 4) e filtrar por b_M < 0.75
     #pragma omp parallel for
     for (size_t i = 0; i < sizeB; ++i)
     {
@@ -122,6 +126,8 @@ int main(){
         for (size_t j = i + 1; j < sizeB; ++j)
         {
             float value2 = recordsB[j].value;
+            if (value > 0.75 || value2 > 0.75)
+                continue;
             if (value > value2)
             {
                 #pragma omp critical
@@ -131,6 +137,26 @@ int main(){
         #pragma omp critical
         timesToRepeatB.push_back(times);
     }
+
+    // Print reduced a e b
+    // for (const auto& pair : reducedA)
+    // {
+    //     const std::string& id = pair.first;
+    //     const std::vector<int>& indices = pair.second;
+    //     for (const int& index : indices)
+    //     {
+    //         fprintf(stdout, "A :%s,%f\n", ids[index], recordsA[index].value);
+    //     }
+    // }
+    // for (const auto& pair : reducedA)
+    // {
+    //     const std::string& id = pair.first;
+    //     const std::vector<int>& indices = pair.second;
+    //     for (const int& index : indices)
+    //     {
+    //         fprintf(stdout, "B: %s,%f\n", ids[index], recordsB[index].value);
+    //     }
+    // }
 
 
     // TODO: paralelizar esse for
@@ -159,8 +185,12 @@ int main(){
 
                         int timesA = timesToRepeatA[idxA];
                         int timesB = timesToRepeatB[idxB];
-                        int timesToRepeat = timesA * timesB;
-                        fprintf(output, "%s,%s,%s,%f,%f, %f, %d\n", ids[idxA], ids[idxB], combinedId.c_str(), recordsA[idxA].value, recordsB[idxB].value, f, timesToRepeat);
+                        long long int timesToRepeat = timesA * timesB;
+                        // if (timesToRepeat < 1)
+                        // {
+                        //     continue;
+                        // }
+                        fprintf(output, "%s,%s,%s,%f,%f, %f, %lld\n", ids[idxA], ids[idxB], combinedId.c_str(), recordsA[idxA].value, recordsB[idxB].value, f, timesToRepeat);
                         total+=timesToRepeat;
                     }
                 }
@@ -174,6 +204,8 @@ int main(){
     free(recordsA);
     free(recordsB);
     free(ids);
+
+    system("sort -t, -k6 -n ../output.csv -o ../sorted_output.csv");
 
     std::cout << "Processamento completo. Resultados salvos em output.csv." << std::endl << "Numero de linhas: " << total << std::endl;
     return 0;
